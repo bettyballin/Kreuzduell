@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kreuzduell – Offline</title>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    
+    /* Main container layout */
+    .game-container {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 20px;
+    }
+    
+    /* Grid layout */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(9, 40px);
+      grid-template-rows: repeat(9, 40px);
+      gap: 2px;
+      margin-bottom: 20px;
+    }
+    
+    .cell {
+      width: 40px; height: 40px; border: 1px solid #aaa;
+      position: relative; background-color: white;
+      overflow: hidden; /* Prevent text overflow */
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: 2px;
+    }
+    
+    /* Style for the letter inside a cell */
+    .cell-letter {
+      display: block;
+      width: 100%;
+      height: 70%;
+      text-align: center;
+      line-height: 30px;
+      font-size: 18px;
+      font-weight: bold;
+      margin-top: 5px;
+    }
+    
+    /* Player controls and info */
+    .controls-container {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      min-width: 250px;
+    }
+    
+    .letters { margin-top: 10px; }
+    .letter {
+      padding: 10px; border: 1px solid black; margin: 2px;
+      cursor: grab; display: inline-block; user-select: none;
+    }
+    .score {
+      margin-top: 10px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .hint {
+      font-size: 10px;
+      font-weight: bold;
+      text-align: center;
+      color: #333;
+      width: 100%;
+      height: 30%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 1px dotted #ccc;
+    }
+    
+    .direction-arrow {
+      display: inline-block;
+      margin-left: 2px;
+      font-size: 10px;
+      color: #0066cc; /* Blue color for better visibility */
+    }
+    .player-info {
+      padding: 10px;
+      border: 2px solid #ccc;
+      border-radius: 5px;
+      margin-bottom: 10px;
+    }
+    .active-player {
+      border-color: #4CAF50;
+      background-color: #f1f8e9;
+    }
+    
+    /* Buttons */
+    .game-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .game-buttons button {
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    
+    /* Blinking border animation */
+    @keyframes blink-border {
+      0% { border-color: red; }
+      50% { border-color: transparent; }
+      100% { border-color: red; }
+    }
+    
+    .incorrect-cell {
+      animation: blink-border 0.5s linear infinite;
+      border: 2px solid red;
+    }
+  </style>
+</head>
+<body>
+  <h1>Kreuzduell – Wörter aufdecken!</h1>
+  
+  <div class="game-container">
+    <div class="grid" id="grid"></div>
+    
+    <div class="controls-container">
+      <div id="player1" class="player-info active-player">
+        <h3>Spieler 1</h3>
+        <div class="letters" id="letters"></div>
+        <div class="score">Punkte: <span id="score1">0</span></div>
+      </div>
+      
+      <div id="player2" class="player-info">
+        <h3>Spieler 2</h3>
+        <div class="letters" id="letters2"></div>
+        <div class="score">Punkte: <span id="score2">0</span></div>
+      </div>
+      
+      <div class="game-buttons">
+        <button onclick="submitMove()">Zug einreichen</button>
+        <button onclick="toggleSolutions()" style="background-color: #ffeb3b;">Debug: Lösungen zeigen</button>
+      </div>
+      
+      <div id="message" style="margin-top: 10px; color: #d32f2f;"></div>
+    </div>
+  </div>
+
+  <script>
+    // Add debugging
+    console.log("Game initializing... (Debug version)");
+    
+    // Game state
+    let player1Letters = [];
+    let player2Letters = [];
+    let currentPlayer = 1; // Track current player
+    let scores = [0, 0]; // Player 1 and 2 scores
+    let placedLetters = []; // Track which letters were placed and where
+    
+    // Debug functions
+    function debugLog(message) {
+      console.log(`[DEBUG] ${message}`);
+    }
+    
+    function toggleSolutions() {
+      debugLog("Toggling solution visibility");
+      const cells = document.querySelectorAll('.cell');
+      cells.forEach(cell => {
+        const solution = cell.dataset.solution;
+        if (solution) {
+          // If cell already shows solution, hide it
+          if (cell.querySelector('.debug-solution')) {
+            const solutionDiv = cell.querySelector('.debug-solution');
+            cell.removeChild(solutionDiv);
+          } else {
+            // Otherwise show the solution
+            const solutionDiv = document.createElement('div');
+            solutionDiv.className = 'debug-solution';
+            solutionDiv.style.position = 'absolute';
+            solutionDiv.style.top = '50%';
+            solutionDiv.style.left = '50%';
+            solutionDiv.style.transform = 'translate(-50%, -50%)';
+            solutionDiv.style.color = 'red';
+            solutionDiv.style.fontWeight = 'bold';
+            solutionDiv.style.fontSize = '16px';
+            solutionDiv.style.zIndex = '10';
+            solutionDiv.innerText = solution;
+            cell.appendChild(solutionDiv);
+          }
+        }
+      });
+    }
+    
+    // Helper function to get current player's letters
+    function getCurrentPlayerLetters() {
+      return currentPlayer === 1 ? player1Letters : player2Letters;
+    }
+    
+    // Helper function to set current player's letters
+    function setCurrentPlayerLetters(letters) {
+      if (currentPlayer === 1) {
+        player1Letters = letters;
+      } else {
+        player2Letters = letters;
+      }
+    }
+
+    const wordBank = [
+      { word: "HAUS", hint: "Wohnen" },
+      { word: "KATZE", hint: "Tier" },
+      { word: "BLUME", hint: "Pflanze" },
+      { word: "WAGEN", hint: "Fahrzeug" },
+      { word: "STUHL", hint: "Möbel" },
+      { word: "TISCH", hint: "Einrichtung" },
+      { word: "MAUS", hint: "Nager" },
+      { word: "HUND", hint: "Freund" },
+      { word: "BUCH", hint: "Lesen" },
+      { word: "BALL", hint: "Sport" },
+      { word: "BAUM", hint: "Wald" },
+      { word: "BROT", hint: "Essen" },
+      { word: "UFER", hint: "Wasser" },
+      { word: "SEIL", hint: "Klettern" },
+      { word: "BOOT", hint: "Segeln" },
+      { word: "MOND", hint: "Himmel" }
+    ];
+
+    function getRandomWords(n) {
+      const shuffled = wordBank.sort(() => 0.5 - Math.random());
+      return shuffled.slice(0, n);
+    }
+
+    // Function to fetch words from DWDS API - Modified to handle CORS issues
+    async function fetchWordsFromDWDS() {
+      debugLog("Fetching words from DWDS API");
+      try {
+        // Note: This will likely fail due to CORS when running locally
+        // We're adding a no-cors mode to prevent the request from failing completely
+        const response = await fetch('https://www.dwds.de/api/feed/adt', {
+          mode: 'no-cors' // This will make the response opaque but prevent CORS errors
+        }).catch(error => {
+          throw new Error("CORS error or network failure");
+        });
+        
+        // If we get here, we'll try to process the response
+        // But with no-cors mode, we likely can't access the content
+        try {
+          const html = await response.text();
+          
+          // Parse the HTML to extract words from <i> tags
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const italicElements = doc.querySelectorAll('i');
+          
+          // Extract words between 1-7 characters without numbers or special characters
+          const words = [];
+          italicElements.forEach(element => {
+            const text = element.textContent.trim();
+            const wordsInText = text.split(/\s+/);
+            
+            wordsInText.forEach(word => {
+              // Filter words: 1-7 characters, only letters (no numbers or special chars)
+              if (word.length >= 1 && word.length <= 7 && /^[a-zA-ZäöüÄÖÜß]+$/.test(word)) {
+                words.push(word.toUpperCase());
+              }
+            });
+          });
+          
+          debugLog(`Found ${words.length} valid words from DWDS`);
+          return words;
+        } catch (error) {
+          throw new Error("Could not process DWDS response");
+        }
+      } catch (error) {
+        debugLog(`Error fetching from DWDS: ${error.message}`);
+        // Fallback to wordBank if API fails
+        return wordBank.map(item => item.word);
+      }
+    }
+    
+    // Function to get synonyms from OpenThesaurus - Modified to handle CORS issues
+    async function getSynonymsFromOpenThesaurus(word) {
+      debugLog(`Getting synonyms for "${word}" from OpenThesaurus`);
+      try {
+        // Using a proxy or direct call - may still face CORS issues
+        const response = await fetch(`https://www.openthesaurus.de/synonyme/search?q=${word}&format=application/json`, {
+          headers: {
+            'Accept': 'application/json'
+          }
+        }).catch(error => {
+          throw new Error("CORS error or network failure");
+        });
+        
+        const data = await response.json();
+        
+        // Extract synonyms
+        const synonyms = [];
+        if (data.synsets && data.synsets.length > 0) {
+          data.synsets.forEach(synset => {
+            synset.terms.forEach(term => {
+              if (term.term !== word) {
+                synonyms.push(term.term);
+              }
+            });
+          });
+        }
+        
+        debugLog(`Found ${synonyms.length} synonyms for "${word}"`);
+        
+        // If no synonyms found, return the word itself as the hint
+        if (synonyms.length === 0) {
+          return word;
+        }
+        
+        // Return a random synonym as the hint
+        return synonyms[Math.floor(Math.random() * synonyms.length)];
+      } catch (error) {
+        debugLog(`Error fetching from OpenThesaurus: ${error.message}`);
+        // Return a generic hint based on the word type
+        const genericHints = {
+          "HAUS": "Wohnen",
+          "KATZE": "Tier",
+          "BLUME": "Pflanze",
+          "WAGEN": "Fahrzeug",
+          "STUHL": "Möbel",
+          "TISCH": "Einrichtung",
+          "MAUS": "Nager",
+          "HUND": "Freund",
+          "BUCH": "Lesen",
+          "BALL": "Sport",
+          "BAUM": "Wald",
+          "BROT": "Essen",
+          "UFER": "Wasser",
+          "SEIL": "Klettern",
+          "BOOT": "Segeln",
+          "MOND": "Himmel"
+        };
+        
+        return genericHints[word] || word;
+      }
+    }
+    
+    // Function to generate a crossword grid with API words
+    async function generateCrosswordGrid(words) {
+      debugLog("Generating crossword grid with API words");
+      
+      // Make sure we have enough words
+      if (words.length < 14) {
+        debugLog(`Not enough words: ${words.length}. Adding words from wordBank.`);
+        // Add words from wordBank if needed
+        const additionalWords = wordBank.map(item => item.word);
+        words = [...words, ...additionalWords];
+      }
+      
+      // Select 14 random words (7 horizontal, 7 vertical)
+      const selectedWords = words.sort(() => 0.5 - Math.random()).slice(0, 14);
+      const horizontalWords = selectedWords.slice(0, 7);
+      const verticalWords = selectedWords.slice(7, 14);
+      
+      // Get synonyms for each word
+      const horizontalWordsWithHints = await Promise.all(
+        horizontalWords.map(async word => {
+          const hint = await getSynonymsFromOpenThesaurus(word);
+          return { word, hint };
+        })
+      );
+      
+      const verticalWordsWithHints = await Promise.all(
+        verticalWords.map(async word => {
+          const hint = await getSynonymsFromOpenThesaurus(word);
+          return { word, hint };
+        })
+      );
+      
+      // Create a grid to place the words
+      const gridSize = 9; // 7 for words + origin + spacer
+      const gridLetters = Array(gridSize).fill().map(() => Array(gridSize).fill(null));
+      
+      // Set origin
+      gridLetters[0][0] = "0";
+      
+      // Place horizontal words in the grid
+      for (let i = 0; i < horizontalWordsWithHints.length; i++) {
+        const { word } = horizontalWordsWithHints[i];
+        const row = i + 1;
+        
+        for (let j = 0; j < word.length && j < 7; j++) {
+          gridLetters[row][j + 1] = word[j];
+        }
+      }
+      
+      // Place vertical words in the grid
+      for (let i = 0; i < verticalWordsWithHints.length; i++) {
+        const { word } = verticalWordsWithHints[i];
+        const col = i + 1;
+        
+        for (let j = 0; j < word.length && j < 7; j++) {
+          // If there's already a letter at this position (from a horizontal word),
+          // we need to handle the conflict
+          if (gridLetters[j + 1][col] && gridLetters[j + 1][col] !== word[j]) {
+            // For simplicity, we'll prioritize the horizontal word
+            // In a real implementation, we'd need a more sophisticated algorithm
+            // to ensure words can properly intersect
+            debugLog(`Conflict at position (${j + 1},${col}): H:${gridLetters[j + 1][col]} V:${word[j]}`);
+          } else {
+            gridLetters[j + 1][col] = word[j];
+          }
+        }
+      }
+      
+      return {
+        gridLetters,
+        horizontalWords: horizontalWordsWithHints,
+        verticalWords: verticalWordsWithHints
+      };
+    }
+    
+    // Create a proper crossword puzzle with 7x7 hints and matching intersections
+    async function createCoordinateCrossword(words) {
+      debugLog("Creating 7x7 crossword layout with API words");
+      const result = [];
+      
+      // Try to generate a grid with API words
+      let gridData;
+      try {
+        const apiWords = await fetchWordsFromDWDS();
+        gridData = await generateCrosswordGrid(apiWords);
+      } catch (error) {
+        debugLog(`Error generating grid with API: ${error.message}`);
+        // Fallback to fixed grid if API fails
+        gridData = createFixedGrid();
+      }
+      
+      const { gridLetters, horizontalWords, verticalWords } = gridData;
+      
+      debugLog(`Using ${horizontalWords.length} horizontal words`);
+      debugLog(`Using ${verticalWords.length} vertical words`);
+      
+      // Add origin point
+      result.push({
+        word: "0",
+        hint: "",
+        start: 0, // Position (0,0)
+        direction: "origin"
+      });
+      
+      // Add X-axis hints (top row)
+      for (let i = 0; i < 7; i++) {
+        result.push({
+          word: verticalWords[i].hint,
+          hint: "",
+          start: i + 1, // Positions (0,1) through (0,7)
+          direction: "hint-x"
+        });
+      }
+      
+      // Add Y-axis hints (left column)
+      for (let i = 0; i < 7; i++) {
+        result.push({
+          word: horizontalWords[i].hint,
+          hint: "",
+          start: (i + 1) * 9, // Positions (1,0) through (7,0)
+          direction: "hint-y"
+        });
+      }
+      
+      // Place vertical words in the grid (corresponding to X-axis hints)
+      for (let i = 0; i < verticalWords.length; i++) {
+        const word = verticalWords[i];
+        const col = i + 1; // Column positions 1-7
+        
+        debugLog(`Placing vertical word "${word.word}" (hint: ${word.hint}) in column ${col}`);
+        result.push({
+          ...word,
+          start: 9 + col, // Start at row 1, columns 1-7
+          direction: "vertical"
+        });
+      }
+      
+      // Place horizontal words in the grid (corresponding to Y-axis hints)
+      for (let i = 0; i < horizontalWords.length; i++) {
+        const word = horizontalWords[i];
+        const row = i + 1; // Row positions 1-7
+        
+        debugLog(`Placing horizontal word "${word.word}" (hint: ${word.hint}) in row ${row}`);
+        result.push({
+          ...word,
+          start: row * 9 + 1, // Start at rows 1-7, column 1
+          direction: "horizontal"
+        });
+      }
+      
+      // Log the grid to verify intersections
+      for (let row = 1; row <= 7; row++) {
+        let rowStr = "";
+        for (let col = 1; col <= 7; col++) {
+          rowStr += (gridLetters[row][col] || " ") + " ";
+        }
+        debugLog(`Row ${row}: ${rowStr}`);
+      }
+      
+      // Store the grid letters for use in drawGrid
+      result.gridLetters = gridLetters;
+      
+      return result;
+    }
+    
+    let predefinedWords; // Changed from const to let so it can be reassigned
+
+    function randomLetters() {
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÜ";
+      let letters = [];
+      for (let i = 0; i < 5; i++) {
+        letters.push(alphabet[Math.floor(Math.random() * alphabet.length)]);
+      }
+      return letters;
+    }
+
+    // Add drag and drop functionality
+    let draggedLetter = "";
+    let draggedLetterIndex = -1;
+    
+    function drawGrid() {
+      debugLog("Drawing grid");
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      
+      // Create a 9x9 grid
+      const cells = [];
+      
+      // Create all cells in the 9x9 grid
+      for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+          const index = row * 9 + col;
+          
+          // Create cell
+          const div = document.createElement('div');
+          div.classList.add('cell');
+          div.contentEditable = false; // Disable direct editing
+          div.dataset.index = index;
+          div.dataset.row = row;
+          div.dataset.col = col;
+          
+          // Skip cells in the last row and last column (they're just spacers)
+          if (row === 8 || col === 8) {
+            div.style.border = "none";
+            div.style.backgroundColor = "transparent";
+            grid.appendChild(div);
+            cells.push(div);
+            continue;
+          }
+          
+          // Add drag and drop event listeners
+          div.addEventListener('dragover', (e) => {
+            e.preventDefault(); // Allow drop
+            debugLog(`Dragover on cell ${index}`);
+          });
+          
+          div.addEventListener('drop', (e) => {
+            e.preventDefault();
+            debugLog(`Drop on cell ${index}: letter ${draggedLetter}`);
+            if (draggedLetter) {
+              // Clear existing letter if any
+              const existingLetter = div.querySelector('.cell-letter');
+              if (existingLetter) {
+                div.removeChild(existingLetter);
+              }
+              
+              // Create a new span for the letter
+              const letterSpan = document.createElement('span');
+              letterSpan.className = 'cell-letter';
+              letterSpan.innerText = draggedLetter;
+              div.appendChild(letterSpan);
+              
+              // Track this placement for validation
+              placedLetters.push({
+                letter: draggedLetter,
+                cellIndex: index,
+                letterIndex: draggedLetterIndex
+              });
+              
+              // Mark this letter as used in the UI
+              const letterElement = document.querySelector(`.letter[data-index="${draggedLetterIndex}"]`);
+              if (letterElement) {
+                letterElement.style.opacity = "0.5";
+                letterElement.setAttribute('draggable', 'false');
+                letterElement.style.cursor = 'default';
+              }
+              
+              // Actually remove the letter from player's hand
+              const currentLetters = getCurrentPlayerLetters();
+              debugLog(`Before removal: ${JSON.stringify(currentLetters)}`);
+              if (draggedLetterIndex >= 0 && draggedLetterIndex < currentLetters.length) {
+                currentLetters.splice(draggedLetterIndex, 1);
+                debugLog(`After removal: ${JSON.stringify(currentLetters)}`);
+                setCurrentPlayerLetters(currentLetters);
+              }
+              
+              // Reset drag state
+              draggedLetter = "";
+              draggedLetterIndex = -1;
+            }
+          });
+          
+          grid.appendChild(div);
+          cells.push(div);
+        }
+      }
+      
+      // Process all predefined words and add them to the grid
+      predefinedWords.forEach(({ word, start, direction, hint }) => {
+        // Handle origin point (0,0)
+        if (direction === "origin") {
+          if (cells[start]) {
+            cells[start].style.backgroundColor = "#f0f0f0";
+            cells[start].style.border = "2px solid #666";
+            cells[start].innerText = word; // "0"
+          }
+          return;
+        }
+        
+        // Handle X-axis hint cells (top row)
+        if (direction === "hint-x") {
+          if (cells[start]) {
+            cells[start].style.backgroundColor = "#e6f7ff"; // Light blue for hints
+            cells[start].style.border = "1px solid #0099cc";
+            
+            const hintDiv = document.createElement("div");
+            hintDiv.className = "hint";
+            
+            // Add hint text (shortened if needed)
+            const shortHint = word.length > 8 ? word.substring(0, 6) + "..." : word;
+            hintDiv.innerText = shortHint;
+            
+            // Add direction arrow
+            const arrowSpan = document.createElement("span");
+            arrowSpan.className = "direction-arrow";
+            arrowSpan.innerText = "↓"; // Down arrow for vertical words
+            hintDiv.appendChild(arrowSpan);
+            
+            cells[start].insertBefore(hintDiv, cells[start].firstChild);
+            debugLog(`X-axis hint "${word}" is in column ${start}`);
+          }
+          return;
+        }
+        
+        // Handle Y-axis hint cells (left column)
+        if (direction === "hint-y") {
+          if (cells[start]) {
+            cells[start].style.backgroundColor = "#e6f7ff"; // Light blue for hints
+            cells[start].style.border = "1px solid #0099cc";
+            
+            const hintDiv = document.createElement("div");
+            hintDiv.className = "hint";
+            
+            // Add hint text (shortened if needed)
+            const shortHint = word.length > 8 ? word.substring(0, 6) + "..." : word;
+            hintDiv.innerText = shortHint;
+            
+            // Add direction arrow
+            const arrowSpan = document.createElement("span");
+            arrowSpan.className = "direction-arrow";
+            arrowSpan.innerText = "→"; // Right arrow for horizontal words
+            hintDiv.appendChild(arrowSpan);
+            
+            cells[start].insertBefore(hintDiv, cells[start].firstChild);
+            debugLog(`Y-axis hint "${word}" is in row ${Math.floor(start / 7)}`);
+          }
+          return;
+        }
+        
+        // Handle regular word cells
+        for (let i = 0; i < word.length && i < 5; i++) {
+          let index = direction === "horizontal" ? start + i : start + i * 9;
+          if (cells[index]) {
+            const row = Math.floor(index / 7);
+            const col = index % 7;
+            
+            // Use the letter from our predefined grid
+            if (predefinedWords.gridLetters && predefinedWords.gridLetters[row] && predefinedWords.gridLetters[row][col]) {
+              cells[index].dataset.solution = predefinedWords.gridLetters[row][col];
+              debugLog(`Cell ${index} (row ${row}, col ${col}) has solution ${predefinedWords.gridLetters[row][col]}`);
+            }
+            
+            // Mark this cell as part of this word
+            if (direction === "horizontal") {
+              cells[index].dataset.horizontalWord = word.word;
+              cells[index].dataset.horizontalIndex = i;
+            } else {
+              cells[index].dataset.verticalWord = word.word;
+              cells[index].dataset.verticalIndex = i;
+            }
+          }
+        }
+      });
+    }
+
+    function drawLetters() {
+      const currentLetters = getCurrentPlayerLetters();
+      debugLog(`Drawing letters for Player ${currentPlayer}: ${JSON.stringify(currentLetters)}`);
+      
+      const lettersContainer = document.getElementById(currentPlayer === 1 ? 'letters' : 'letters2');
+      lettersContainer.innerHTML = '';
+      
+      currentLetters.forEach((letter, index) => {
+        const span = document.createElement('span');
+        span.className = 'letter';
+        span.innerText = letter;
+        span.draggable = true;
+        span.dataset.index = index;
+        
+        span.addEventListener('dragstart', (e) => {
+          draggedLetter = letter;
+          draggedLetterIndex = index;
+          debugLog(`Drag started: ${letter} (index ${index})`);
+        });
+        
+        lettersContainer.appendChild(span);
+      });
+    }
+
+    function submitMove() {
+      debugLog("Submitting move");
+      
+      // Check if any letters were placed
+      if (placedLetters.length === 0) {
+        document.getElementById('message').innerText = "Keine Buchstaben platziert!";
+        return;
+      }
+      
+      // Reset any previous error indicators
+      document.querySelectorAll('.incorrect-cell').forEach(cell => {
+        cell.classList.remove('incorrect-cell');
+      });
+      
+      // Validate the move
+      let isValid = true;
+      let score = 0;
+      const completedWords = new Set();
+      
+      // Check each placed letter
+      placedLetters.forEach(({ letter, cellIndex }) => {
+        const cell = document.querySelector(`.cell[data-index="${cellIndex}"]`);
+        if (cell) {
+          const solution = cell.dataset.solution;
+          if (solution && letter !== solution) {
+            // Incorrect letter
+            isValid = false;
+            cell.classList.add('incorrect-cell');
+          } else if (solution) {
+            // Correct letter
+            // Check if this completes a word
+            const horizontalWord = cell.dataset.horizontalWord;
+            const verticalWord = cell.dataset.verticalWord;
+            
+            if (horizontalWord && !completedWords.has(horizontalWord)) {
+              // Check if the horizontal word is complete
+              const wordCells = document.querySelectorAll(`.cell[data-horizontal-word="${horizontalWord}"]`);
+              let isWordComplete = true;
+              wordCells.forEach(wordCell => {
+                if (!wordCell.querySelector('.cell-letter')) {
+                  isWordComplete = false;
+                }
+              });
+              
+              if (isWordComplete) {
+                completedWords.add(horizontalWord);
+                score += horizontalWord.length;
+              }
+            }
+            
+            if (verticalWord && !completedWords.has(verticalWord)) {
+              // Check if the vertical word is complete
+              const wordCells = document.querySelectorAll(`.cell[data-vertical-word="${verticalWord}"]`);
+              let isWordComplete = true;
+              wordCells.forEach(wordCell => {
+                if (!wordCell.querySelector('.cell-letter')) {
+                  isWordComplete = false;
+                }
+              });
+              
+              if (isWordComplete) {
+                completedWords.add(verticalWord);
+                score += verticalWord.length;
+              }
+            }
+          }
+        }
+      });
+      
+      if (!isValid) {
+        document.getElementById('message').innerText = "Falsche Buchstaben! Versuche es erneut.";
+        return;
+      }
+      
+      // Update score
+      scores[currentPlayer - 1] += score;
+      document.getElementById(`score${currentPlayer}`).innerText = scores[currentPlayer - 1];
+      
+      // Switch player
+      document.getElementById(`player${currentPlayer}`).classList.remove('active-player');
+      currentPlayer = currentPlayer === 1 ? 2 : 1;
+      document.getElementById(`player${currentPlayer}`).classList.add('active-player');
+      
+      // Reset placed letters
+      placedLetters = [];
+      
+      // Give new letters to the current player
+      if (getCurrentPlayerLetters().length === 0) {
+        setCurrentPlayerLetters(randomLetters());
+      }
+      
+      // Update the UI
+      drawLetters();
+      
+      // Show message
+      document.getElementById('message').innerText = `Spieler ${currentPlayer} beginnt. Ziehe Buchstaben in das Rätsel!`;
+    }
+
+    // Function to create a fixed grid as fallback
+    function createFixedGrid() {
+      const result = [];
+      
+      // Define a fixed grid with letters that form valid words both horizontally and vertically
+      const gridLetters = [
+        // col 0   1    2    3    4    5    6    7    8
+        /* row 0 */ ["0", "H", "A", "L", "B", "T", "S", "P", " "],
+        /* row 1 */ ["K", "H", "A", "U", "S", "E", "N", "T", " "],
+        /* row 2 */ ["A", "U", "U", "F", "E", "R", "S", "A", " "],
+        /* row 3 */ ["T", "N", "T", "E", "I", "L", "E", "N", " "],
+        /* row 4 */ ["Z", "D", "O", "R", "N", "E", "N", "Z", " "],
+        /* row 5 */ ["E", "B", "A", "L", "L", "E", "N", "E", " "],
+        /* row 6 */ ["R", "A", "U", "M", "E", "N", "D", "R", " "],
+        /* row 7 */ ["N", "R", "E", "G", "E", "N", "E", "N", " "],
+        /* row 8 */ [" ", " ", " ", " ", " ", " ", " ", " ", " "]
+      ];
+      
+      // Define the words based on our grid
+      const horizontalWords = [
+        { word: "HAUSEN", hint: "Wohnen" },
+        { word: "UUFERS", hint: "Wasser" },
+        { word: "TEILEN", hint: "Anteil" },
+        { word: "DORNEN", hint: "Pflanze" },
+        { word: "BALLEN", hint: "Sport" },
+        { word: "RAUMEN", hint: "Aufräumen" },
+        { word: "REGENE", hint: "Wetter" }
+      ];
+      
+      const verticalWords = [
+        { word: "HUNDBA", hint: "Freund" },
+        { word: "AUTOAU", hint: "Fahrzeug" },
+        { word: "UFERLE", hint: "Wasser" },
+        { word: "SEIMGE", hint: "Existenz" },
+        { word: "ERLENE", hint: "Erlebnis" },
+        { word: "NSNDEN", hint: "Richtung" },
+        { word: "TANZRN", hint: "Bewegung" }
+      ];
+      
+      // Add origin point
+      result.push({
+        word: "0",
+        hint: "",
+        start: 0, // Position (0,0)
+        direction: "origin"
+      });
+      
+      // Add X-axis hints (top row)
+      for (let i = 0; i < 7; i++) {
+        result.push({
+          word: verticalWords[i].hint,
+          hint: "",
+          start: i + 1, // Positions (0,1) through (0,7)
+          direction: "hint-x"
+        });
+      }
+      
+      // Add Y-axis hints (left column)
+      for (let i = 0; i < 7; i++) {
+        result.push({
+          word: horizontalWords[i].hint,
+          hint: "",
+          start: (i + 1) * 9, // Positions (1,0) through (7,0)
+          direction: "hint-y"
+        });
+      }
+      
+      // Place vertical words in the grid (corresponding to X-axis hints)
+      for (let i = 0; i < verticalWords.length; i++) {
+        const word = verticalWords[i];
+        const col = i + 1; // Column positions 1-7
+        
+        debugLog(`Placing vertical word "${word.word}" (hint: ${word.hint}) in column ${col}`);
+        result.push({
+          ...word,
+          start: 9 + col, // Start at row 1, columns 1-7
+          direction: "vertical"
+        });
+      }
+      
+      // Place horizontal words in the grid (corresponding to Y-axis hints)
+      for (let i = 0; i < horizontalWords.length; i++) {
+        const word = horizontalWords[i];
+        const row = i + 1; // Row positions 1-7
+        
+        debugLog(`Placing horizontal word "${word.word}" (hint: ${word.hint}) in row ${row}`);
+        result.push({
+          ...word,
+          start: row * 9 + 1, // Start at rows 1-7, column 1
+          direction: "horizontal"
+        });
+      }
+      
+      // Store the grid letters for use in drawGrid
+      result.gridLetters = gridLetters;
+      
+      return result;
+    }
+    
+    // Initialize the game
+    async function initGame() {
+      try {
+        player1Letters = randomLetters();
+        player2Letters = randomLetters();
+        
+        // Create the crossword puzzle
+        // Use a try-catch block to handle any errors during creation
+        try {
+          debugLog("Attempting to create crossword with API data");
+          predefinedWords = await createCoordinateCrossword(wordBank);
+        } catch (error) {
+          debugLog(`Error creating crossword: ${error.message}`);
+          // Fallback to fixed grid if API fails
+          debugLog("Using fixed grid fallback");
+          predefinedWords = createFixedGrid();
+        }
+        
+        drawGrid();
+        drawLetters();
+        document.getElementById('message').innerText = "Spieler 1 beginnt. Ziehe Buchstaben in das Rätsel!";
+      } catch (error) {
+        debugLog(`Game initialization error: ${error.message}`);
+        // Show error message to user
+        document.getElementById('message').innerText = "Fehler beim Laden des Spiels. Bitte Seite neu laden.";
+      }
+    }
+    
+    // Start the game
+    initGame().catch(error => {
+      console.error("Failed to initialize game:", error);
+      document.getElementById('message').innerText = "Fehler beim Laden des Spiels. Bitte Seite neu laden.";
+    });
+  </script>
+</body>
+</html>
