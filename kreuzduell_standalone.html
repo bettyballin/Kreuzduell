@@ -34,6 +34,29 @@
       padding: 2px;
     }
     
+    /* Word boundary indicators */
+    .word-end-right::after {
+      content: "";
+      position: absolute;
+      right: -1px;
+      top: 0;
+      height: 100%;
+      width: 4px;
+      background-color: black;
+      z-index: 5;
+    }
+    
+    .word-end-bottom::after {
+      content: "";
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background-color: black;
+      z-index: 5;
+    }
+    
     /* Style for the letter inside a cell */
     .cell-letter {
       display: block;
@@ -743,8 +766,13 @@
           return;
         }
         
+        // Get the actual word text for length calculation
+        const wordText = typeof word === 'string' ? word : (word.word || '');
+        // Calculate the actual length to display (max 5 characters)
+        const displayLength = Math.min(wordText.length, 5);
+        
         // Handle regular word cells
-        for (let i = 0; i < word.length && i < 5; i++) {
+        for (let i = 0; i < displayLength; i++) {
           let index = direction === "horizontal" ? start + i : start + i * 9;
           if (cells[index]) {
             // Calculate row and col based on the 9x9 grid structure
@@ -769,6 +797,14 @@
                 cells[index].dataset.horizontalWord = wordText;
                 cells[index].dataset.horizontalIndex = i;
                 debugLog(`Cell ${index} is part of horizontal word "${wordText}" at index ${i}`);
+                
+                // Add word boundary indicator if this is the last letter of the word
+                // Check if this is the last letter based on the display length
+                const isLastLetter = (i === displayLength - 1);
+                if (isLastLetter) {
+                  cells[index].classList.add('word-end-right');
+                  debugLog(`Added right boundary to cell ${index} (end of horizontal word "${wordText}")`);
+                }
               }
             } else {
               // Make sure we're using the correct property
@@ -777,6 +813,14 @@
                 cells[index].dataset.verticalWord = wordText;
                 cells[index].dataset.verticalIndex = i;
                 debugLog(`Cell ${index} is part of vertical word "${wordText}" at index ${i}`);
+                
+                // Add word boundary indicator if this is the last letter of the word
+                // Check if this is the last letter based on the display length
+                const isLastLetter = (i === displayLength - 1);
+                if (isLastLetter) {
+                  cells[index].classList.add('word-end-bottom');
+                  debugLog(`Added bottom boundary to cell ${index} (end of vertical word "${wordText}")`);
+                }
               }
             }
           }
@@ -879,6 +923,30 @@
       
       if (!isValid) {
         document.getElementById('message').innerText = "Falsche Buchstaben! Versuche es erneut.";
+        
+        // Get all incorrect cells
+        const incorrectCells = document.querySelectorAll('.incorrect-cell');
+        
+        // After 3 seconds, remove the incorrect-cell class and clear the letters
+        setTimeout(() => {
+          incorrectCells.forEach(cell => {
+            // Remove the incorrect-cell class
+            cell.classList.remove('incorrect-cell');
+            
+            // Remove the letter from the cell
+            const letterElement = cell.querySelector('.cell-letter');
+            if (letterElement) {
+              cell.removeChild(letterElement);
+            }
+            
+            // Find this cell in placedLetters and remove it
+            const cellIndex = parseInt(cell.dataset.index);
+            placedLetters = placedLetters.filter(item => item.cellIndex !== cellIndex);
+          });
+          
+          document.getElementById('message').innerText = "Spieler " + currentPlayer + " ist am Zug.";
+        }, 3000);
+        
         return;
       }
       
