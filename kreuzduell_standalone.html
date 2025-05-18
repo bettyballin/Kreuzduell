@@ -166,9 +166,14 @@
     function toggleSolutions() {
       debugLog("Toggling solution visibility");
       const cells = document.querySelectorAll('.cell');
+      
+      // Count how many cells have solutions
+      let solutionCount = 0;
+      
       cells.forEach(cell => {
         const solution = cell.dataset.solution;
         if (solution) {
+          solutionCount++;
           // If cell already shows solution, hide it
           if (cell.querySelector('.debug-solution')) {
             const solutionDiv = cell.querySelector('.debug-solution');
@@ -190,6 +195,23 @@
           }
         }
       });
+      
+      debugLog(`Found ${solutionCount} cells with solutions`);
+      
+      // Check if we have complete words
+      const horizontalWords = new Set();
+      const verticalWords = new Set();
+      
+      cells.forEach(cell => {
+        if (cell.dataset.horizontalWord) {
+          horizontalWords.add(cell.dataset.horizontalWord);
+        }
+        if (cell.dataset.verticalWord) {
+          verticalWords.add(cell.dataset.verticalWord);
+        }
+      });
+      
+      debugLog(`Found ${horizontalWords.size} horizontal words and ${verticalWords.size} vertical words`);
     }
     
     // Helper function to get current player's letters
@@ -384,8 +406,17 @@
         const { word } = horizontalWordsWithHints[i];
         const row = i + 1;
         
+        debugLog(`Placing horizontal word "${word}" in row ${row}`);
+        
+        // Make sure we have a valid word
+        if (!word || word.length === 0) {
+          debugLog(`Skipping empty horizontal word at row ${row}`);
+          continue;
+        }
+        
         for (let j = 0; j < word.length && j < 7; j++) {
           gridLetters[row][j + 1] = word[j];
+          debugLog(`Set gridLetters[${row}][${j + 1}] = "${word[j]}"`);
         }
       }
       
@@ -394,18 +425,58 @@
         const { word } = verticalWordsWithHints[i];
         const col = i + 1;
         
+        debugLog(`Placing vertical word "${word}" in column ${col}`);
+        
+        // Make sure we have a valid word
+        if (!word || word.length === 0) {
+          debugLog(`Skipping empty vertical word at column ${col}`);
+          continue;
+        }
+        
         for (let j = 0; j < word.length && j < 7; j++) {
           // If there's already a letter at this position (from a horizontal word),
           // we need to handle the conflict
           if (gridLetters[j + 1][col] && gridLetters[j + 1][col] !== word[j]) {
-            // For simplicity, we'll prioritize the horizontal word
-            // In a real implementation, we'd need a more sophisticated algorithm
-            // to ensure words can properly intersect
+            // Try to find words that can intersect properly
             debugLog(`Conflict at position (${j + 1},${col}): H:${gridLetters[j + 1][col]} V:${word[j]}`);
+            // Keep the horizontal letter to maintain crossword integrity
           } else {
             gridLetters[j + 1][col] = word[j];
+            debugLog(`Set gridLetters[${j + 1}][${col}] = "${word[j]}"`);
           }
         }
+      }
+      
+      // Verify the grid has valid words
+      debugLog("Verifying grid contains valid words:");
+      let hasValidWords = false;
+      
+      // Check horizontal words
+      for (let row = 1; row <= 7; row++) {
+        let rowWord = "";
+        for (let col = 1; col <= 7; col++) {
+          rowWord += gridLetters[row][col] || "";
+        }
+        if (rowWord.length > 1) {
+          debugLog(`Row ${row} word: ${rowWord}`);
+          hasValidWords = true;
+        }
+      }
+      
+      // Check vertical words
+      for (let col = 1; col <= 7; col++) {
+        let colWord = "";
+        for (let row = 1; row <= 7; row++) {
+          colWord += gridLetters[row][col] || "";
+        }
+        if (colWord.length > 1) {
+          debugLog(`Column ${col} word: ${colWord}`);
+          hasValidWords = true;
+        }
+      }
+      
+      if (!hasValidWords) {
+        debugLog("WARNING: Grid does not contain valid words!");
       }
       
       return {
@@ -609,12 +680,15 @@
       
       // Process all predefined words and add them to the grid
       predefinedWords.forEach(({ word, start, direction, hint }) => {
+        debugLog(`Processing word: ${word}, start: ${start}, direction: ${direction}`);
+        
         // Handle origin point (0,0)
         if (direction === "origin") {
           if (cells[start]) {
             cells[start].style.backgroundColor = "#f0f0f0";
             cells[start].style.border = "2px solid #666";
             cells[start].innerText = word; // "0"
+            debugLog(`Set origin at cell ${start}`);
           }
           return;
         }
@@ -673,22 +747,37 @@
         for (let i = 0; i < word.length && i < 5; i++) {
           let index = direction === "horizontal" ? start + i : start + i * 9;
           if (cells[index]) {
-            const row = Math.floor(index / 7);
-            const col = index % 7;
+            // Calculate row and col based on the 9x9 grid structure
+            const row = Math.floor(index / 9);
+            const col = index % 9;
+            
+            debugLog(`Word: ${word.word}, Letter ${i}, Index: ${index}, Row: ${row}, Col: ${col}`);
             
             // Use the letter from our predefined grid
             if (predefinedWords.gridLetters && predefinedWords.gridLetters[row] && predefinedWords.gridLetters[row][col]) {
               cells[index].dataset.solution = predefinedWords.gridLetters[row][col];
               debugLog(`Cell ${index} (row ${row}, col ${col}) has solution ${predefinedWords.gridLetters[row][col]}`);
+            } else {
+              debugLog(`No solution found for cell ${index} (row ${row}, col ${col})`);
             }
             
             // Mark this cell as part of this word
             if (direction === "horizontal") {
-              cells[index].dataset.horizontalWord = word.word;
-              cells[index].dataset.horizontalIndex = i;
+              // Make sure we're using the correct property
+              const wordText = typeof word === 'string' ? word : (word.word || '');
+              if (wordText) {
+                cells[index].dataset.horizontalWord = wordText;
+                cells[index].dataset.horizontalIndex = i;
+                debugLog(`Cell ${index} is part of horizontal word "${wordText}" at index ${i}`);
+              }
             } else {
-              cells[index].dataset.verticalWord = word.word;
-              cells[index].dataset.verticalIndex = i;
+              // Make sure we're using the correct property
+              const wordText = typeof word === 'string' ? word : (word.word || '');
+              if (wordText) {
+                cells[index].dataset.verticalWord = wordText;
+                cells[index].dataset.verticalIndex = i;
+                debugLog(`Cell ${index} is part of vertical word "${wordText}" at index ${i}`);
+              }
             }
           }
         }
@@ -821,40 +910,58 @@
     function createFixedGrid() {
       const result = [];
       
+      debugLog("Creating fixed grid as fallback");
+      
       // Define a fixed grid with letters that form valid words both horizontally and vertically
       const gridLetters = [
         // col 0   1    2    3    4    5    6    7    8
         /* row 0 */ ["0", "H", "A", "L", "B", "T", "S", "P", " "],
-        /* row 1 */ ["K", "H", "A", "U", "S", "E", "N", "T", " "],
-        /* row 2 */ ["A", "U", "U", "F", "E", "R", "S", "A", " "],
-        /* row 3 */ ["T", "N", "T", "E", "I", "L", "E", "N", " "],
-        /* row 4 */ ["Z", "D", "O", "R", "N", "E", "N", "Z", " "],
-        /* row 5 */ ["E", "B", "A", "L", "L", "E", "N", "E", " "],
-        /* row 6 */ ["R", "A", "U", "M", "E", "N", "D", "R", " "],
-        /* row 7 */ ["N", "R", "E", "G", "E", "N", "E", "N", " "],
+        /* row 1 */ ["K", "H", "A", "U", "S", " ", " ", " ", " "],
+        /* row 2 */ ["A", "U", "T", "O", " ", " ", " ", " ", " "],
+        /* row 3 */ ["T", "N", "O", " ", " ", " ", " ", " ", " "],
+        /* row 4 */ ["Z", "D", " ", " ", " ", " ", " ", " ", " "],
+        /* row 5 */ ["E", " ", " ", " ", " ", " ", " ", " ", " "],
+        /* row 6 */ ["R", " ", " ", " ", " ", " ", " ", " ", " "],
+        /* row 7 */ ["N", " ", " ", " ", " ", " ", " ", " ", " "],
         /* row 8 */ [" ", " ", " ", " ", " ", " ", " ", " ", " "]
       ];
       
+      // Log the grid for debugging
+      debugLog("Fixed grid layout:");
+      for (let row = 0; row < 9; row++) {
+        let rowStr = "";
+        for (let col = 0; col < 9; col++) {
+          rowStr += (gridLetters[row][col] || " ") + " ";
+        }
+        debugLog(`Row ${row}: ${rowStr}`);
+      }
+      
       // Define the words based on our grid
       const horizontalWords = [
-        { word: "HAUSEN", hint: "Wohnen" },
-        { word: "UUFERS", hint: "Wasser" },
-        { word: "TEILEN", hint: "Anteil" },
-        { word: "DORNEN", hint: "Pflanze" },
-        { word: "BALLEN", hint: "Sport" },
-        { word: "RAUMEN", hint: "Aufräumen" },
-        { word: "REGENE", hint: "Wetter" }
+        { word: "HAUS", hint: "Wohnen" },
+        { word: "AUTO", hint: "Fahrzeug" },
+        { word: "TO", hint: "Zu" },
+        { word: "", hint: "Leer" },
+        { word: "", hint: "Leer" },
+        { word: "", hint: "Leer" },
+        { word: "", hint: "Leer" }
       ];
       
       const verticalWords = [
-        { word: "HUNDBA", hint: "Freund" },
-        { word: "AUTOAU", hint: "Fahrzeug" },
-        { word: "UFERLE", hint: "Wasser" },
-        { word: "SEIMGE", hint: "Existenz" },
-        { word: "ERLENE", hint: "Erlebnis" },
-        { word: "NSNDEN", hint: "Richtung" },
-        { word: "TANZRN", hint: "Bewegung" }
+        { word: "HUND", hint: "Freund" },
+        { word: "AUTO", hint: "Fahrzeug" },
+        { word: "LO", hint: "Ausruf" },
+        { word: "B", hint: "Buchstabe" },
+        { word: "T", hint: "Buchstabe" },
+        { word: "S", hint: "Buchstabe" },
+        { word: "P", hint: "Buchstabe" }
       ];
+      
+      debugLog("Horizontal words:");
+      horizontalWords.forEach(word => debugLog(`- ${word.word} (${word.hint})`));
+      
+      debugLog("Vertical words:");
+      verticalWords.forEach(word => debugLog(`- ${word.word} (${word.hint})`));
       
       // Add origin point
       result.push({
