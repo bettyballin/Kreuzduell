@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kreuzduell – Offline</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h1>Kreuzduell – Wörter aufdecken!</h1>
+  
+  <div class="game-container">
+    <div class="grid" id="grid"></div>
+    
+    <div class="controls-container">
+      <div id="player1" class="player-info active-player">
+        <h3>Spieler 1</h3>
+        <div class="letters" id="letters"></div>
+        <div class="score">Punkte: <span id="score1">0</span></div>
+      </div>
+      
+      <div id="player2" class="player-info">
+        <h3>Spieler 2</h3>
+        <div class="letters" id="letters2"></div>
+        <div class="score">Punkte: <span id="score2">0</span></div>
+      </div>
+      
+      <div class="game-buttons">
+        <button onclick="submitMove()">Zug einreichen</button>
+        <button onclick="toggleSolutions()" style="background-color: #ffeb3b;">Debug: Lösungen zeigen</button>
+      </div>
+      
+      <div id="message" style="margin-top: 10px; color: #d32f2f;"></div>
+    </div>
+  </div>
+
+  <script src="word-generator.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+body { 
+  font-family: Arial; 
+  margin: 20px; 
+}
+
+/* Main container layout */
+.game-container {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+/* Grid layout */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(9, 40px);
+  grid-template-rows: repeat(9, 40px);
+  gap: 2px;
+  margin-bottom: 20px;
+}
+
+.cell {
+  width: 40px; 
+  height: 40px; 
+  border: 1px solid #aaa;
+  position: relative; 
+  background-color: white;
+  overflow: hidden; /* Prevent text overflow */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px;
+}
+
+/* Word boundary indicators */
+.word-end-right::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: 0;
+  height: 100%;
+  width: 4px;
+  background-color: black;
+  z-index: 5;
+}
+
+.word-end-bottom::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background-color: black;
+  z-index: 5;
+}
+
+/* Style for the letter inside a cell */
+.cell-letter {
+  display: block;
+  width: 100%;
+  height: 70%;
+  text-align: center;
+  line-height: 30px;
+  font-size: 18px;
+  font-weight: bold;
+  margin-top: 5px;
+}
+
+/* Player controls and info */
+.controls-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  min-width: 250px;
+}
+
+.letters { 
+  margin-top: 10px; 
+}
+
+.letter {
+  padding: 10px; 
+  border: 1px solid black; 
+  margin: 2px;
+  cursor: grab; 
+  display: inline-block; 
+  user-select: none;
+}
+
+.score {
+  margin-top: 10px;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.hint {
+  font-size: 10px;
+  font-weight: bold;
+  text-align: center;
+  color: #333;
+  width: 100%;
+  height: 30%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px dotted #ccc;
+}
+
+.direction-arrow {
+  display: inline-block;
+  margin-left: 2px;
+  font-size: 10px;
+  color: #0066cc; /* Blue color for better visibility */
+}
+
+.player-info {
+  padding: 10px;
+  border: 2px solid #ccc;
+  border-radius: 5px;
+  margin-bottom: 10px;
+}
+
+.active-player {
+  border-color: #4CAF50;
+  background-color: #f1f8e9;
+}
+
+/* Buttons */
+.game-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.game-buttons button {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+/* Blinking border animation */
+@keyframes blink-border {
+  0% { border-color: red; }
+  50% { border-color: transparent; }
+  100% { border-color: red; }
+}
+
+.incorrect-cell {
+  animation: blink-border 0.5s linear infinite;
+  border: 2px solid red;
+}

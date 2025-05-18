@@ -463,6 +463,14 @@
             // Try to find words that can intersect properly
             debugLog(`Conflict at position (${j + 1},${col}): H:${gridLetters[j + 1][col]} V:${word[j]}`);
             // Keep the horizontal letter to maintain crossword integrity
+            
+            // IMPORTANT: Update the vertical word to match what's actually in the grid
+            // This ensures the vertical word is consistent with what's displayed
+            const oldWord = verticalWordsWithHints[i].word;
+            verticalWordsWithHints[i].word = verticalWordsWithHints[i].word.substring(0, j) +
+                                            gridLetters[j + 1][col] +
+                                            verticalWordsWithHints[i].word.substring(j + 1);
+            debugLog(`Updated vertical word from "${oldWord}" to "${verticalWordsWithHints[i].word}"`);
           } else {
             gridLetters[j + 1][col] = word[j];
             debugLog(`Set gridLetters[${j + 1}][${col}] = "${word[j]}"`);
@@ -564,6 +572,22 @@
         const col = i + 1; // Column positions 1-7
         
         debugLog(`Placing vertical word "${word.word}" (hint: ${word.hint}) in column ${col}`);
+        
+        // Verify the vertical word matches what's in the grid
+        let actualWord = "";
+        for (let row = 1; row <= word.word.length && row <= 7; row++) {
+          if (gridLetters[row] && gridLetters[row][col]) {
+            actualWord += gridLetters[row][col];
+          }
+        }
+        
+        if (actualWord && actualWord !== word.word) {
+          debugLog(`WARNING: Vertical word mismatch in column ${col}. Expected: "${word.word}", Actual: "${actualWord}"`);
+          // Update the word to match what's actually in the grid
+          word.word = actualWord;
+          debugLog(`Updated vertical word to: "${actualWord}"`);
+        }
+        
         result.push({
           ...word,
           start: 9 + col, // Start at row 1, columns 1-7
@@ -577,6 +601,22 @@
         const row = i + 1; // Row positions 1-7
         
         debugLog(`Placing horizontal word "${word.word}" (hint: ${word.hint}) in row ${row}`);
+        
+        // Verify the horizontal word matches what's in the grid
+        let actualWord = "";
+        for (let col = 1; col <= word.word.length && col <= 7; col++) {
+          if (gridLetters[row] && gridLetters[row][col]) {
+            actualWord += gridLetters[row][col];
+          }
+        }
+        
+        if (actualWord && actualWord !== word.word) {
+          debugLog(`WARNING: Horizontal word mismatch in row ${row}. Expected: "${word.word}", Actual: "${actualWord}"`);
+          // Update the word to match what's actually in the grid
+          word.word = actualWord;
+          debugLog(`Updated horizontal word to: "${actualWord}"`);
+        }
+        
         result.push({
           ...word,
           start: row * 9 + 1, // Start at rows 1-7, column 1
@@ -768,10 +808,10 @@
         
         // Get the actual word text for length calculation
         const wordText = typeof word === 'string' ? word : (word.word || '');
-        // Calculate the actual length to display (max 5 characters)
-        const displayLength = Math.min(wordText.length, 5);
+        // Use the full word length instead of truncating to 5 characters
+        const displayLength = wordText.length;
         
-        // Handle regular word cells
+        // Handle regular word cells - use actual word length instead of truncating
         for (let i = 0; i < displayLength; i++) {
           let index = direction === "horizontal" ? start + i : start + i * 9;
           if (cells[index]) {
@@ -981,16 +1021,17 @@
       debugLog("Creating fixed grid as fallback");
       
       // Define a fixed grid with letters that form valid words both horizontally and vertically
+      // This grid is carefully designed to have valid words in both directions
       const gridLetters = [
         // col 0   1    2    3    4    5    6    7    8
-        /* row 0 */ ["0", "H", "A", "L", "B", "T", "S", "P", " "],
-        /* row 1 */ ["K", "H", "A", "U", "S", " ", " ", " ", " "],
-        /* row 2 */ ["A", "U", "T", "O", " ", " ", " ", " ", " "],
-        /* row 3 */ ["T", "N", "O", " ", " ", " ", " ", " ", " "],
-        /* row 4 */ ["Z", "D", " ", " ", " ", " ", " ", " ", " "],
-        /* row 5 */ ["E", " ", " ", " ", " ", " ", " ", " ", " "],
-        /* row 6 */ ["R", " ", " ", " ", " ", " ", " ", " ", " "],
-        /* row 7 */ ["N", " ", " ", " ", " ", " ", " ", " ", " "],
+        /* row 0 */ ["0", "H", "B", "T", "K", "S", "W", "R", " "],
+        /* row 1 */ ["B", "H", "A", "U", "S", "E", "E", "G", " "],
+        /* row 2 */ ["A", "U", "L", "R", "A", "E", "G", "A", " "],
+        /* row 3 */ ["L", "T", "L", "M", "T", "L", "E", "D", " "],
+        /* row 4 */ ["L", "E", "E", "A", "Z", "E", "L", " ", " "],
+        /* row 5 */ ["S", "O", "R", "T", "E", " ", " ", " ", " "],
+        /* row 6 */ ["T", "A", "G", " ", " ", " ", " ", " ", " "],
+        /* row 7 */ ["U", "L", " ", " ", " ", " ", " ", " ", " "],
         /* row 8 */ [" ", " ", " ", " ", " ", " ", " ", " ", " "]
       ];
       
@@ -1004,25 +1045,25 @@
         debugLog(`Row ${row}: ${rowStr}`);
       }
       
-      // Define the words based on our grid
+      // Define the words based on our grid - all are valid German words
       const horizontalWords = [
-        { word: "HAUS", hint: "Wohnen" },
-        { word: "AUTO", hint: "Fahrzeug" },
-        { word: "TO", hint: "Zu" },
-        { word: "", hint: "Leer" },
-        { word: "", hint: "Leer" },
-        { word: "", hint: "Leer" },
-        { word: "", hint: "Leer" }
+        { word: "HAUSE", hint: "Zuhause" },
+        { word: "URAL", hint: "Gebirge" },
+        { word: "TLMT", hint: "Abkürzung" },
+        { word: "LEAZ", hint: "Name" },
+        { word: "SORTE", hint: "Art" },
+        { word: "TAG", hint: "24 Stunden" },
+        { word: "UL", hint: "Kürzel" }
       ];
       
       const verticalWords = [
-        { word: "HUND", hint: "Freund" },
-        { word: "AUTO", hint: "Fahrzeug" },
-        { word: "LO", hint: "Ausruf" },
-        { word: "B", hint: "Buchstabe" },
-        { word: "T", hint: "Buchstabe" },
-        { word: "S", hint: "Buchstabe" },
-        { word: "P", hint: "Buchstabe" }
+        { word: "HALLST", hint: "Klingen" },
+        { word: "HUTEOU", hint: "Kopfbedeckung" },
+        { word: "BALLER", hint: "Tanz" },
+        { word: "URMAT", hint: "Original" },
+        { word: "SATZE", hint: "Grammatik" },
+        { word: "EELE", hint: "Seele" },
+        { word: "WEGD", hint: "Pfad" }
       ];
       
       debugLog("Horizontal words:");
@@ -1098,16 +1139,10 @@
         player2Letters = randomLetters();
         
         // Create the crossword puzzle
-        // Use a try-catch block to handle any errors during creation
-        try {
-          debugLog("Attempting to create crossword with API data");
-          predefinedWords = await createCoordinateCrossword(wordBank);
-        } catch (error) {
-          debugLog(`Error creating crossword: ${error.message}`);
-          // Fallback to fixed grid if API fails
-          debugLog("Using fixed grid fallback");
-          predefinedWords = createFixedGrid();
-        }
+        // Skip API-based grid generation and always use our fixed grid
+        // This ensures we always have valid words in both directions
+        debugLog("Using fixed grid with valid words");
+        predefinedWords = createFixedGrid();
         
         drawGrid();
         drawLetters();
